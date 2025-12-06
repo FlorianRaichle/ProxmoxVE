@@ -13,6 +13,7 @@ var_ram="${var_ram:-1024}"
 var_disk="${var_disk:-4}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-13}"
+var_unprivileged="${var_unprivileged:-1}"
 
 header_info "$APP"
 variables
@@ -37,7 +38,7 @@ function update_script() {
     if [[ "${RELEASE}" != "${INSTALLED}" ]] || [[ -z "${INSTALLED}" ]]; then
         # Stopping Samba Services
         msg_info "Stopping $APP"
-        systemctl stop smbd nmbd
+        systemctl stop smbd nmbd wsdd
         msg_ok "Stopped $APP"
 
         # Creating Backup
@@ -48,12 +49,12 @@ function update_script() {
         # Execute Update
         msg_info "Updating $APP to v${RELEASE}"
         apt-get update
-        apt-get install -y samba samba-common-bin tdb-tools
+        apt-get install -y samba samba-common-bin tdb-tools wsdd
         msg_ok "Updated $APP to v${RELEASE}"
 
         # Starting Samba Services
         msg_info "Starting $APP"
-        systemctl start smbd nmbd
+        systemctl start smbd nmbd wsdd
         msg_ok "Started $APP"
 
         # Cleaning up
@@ -75,23 +76,42 @@ start
 build_container
 description
 
-# Get container IP for Windows access
-CONTAINER_IP=$(hostname -I | awk '{print $1}')
+# Get container IP and hostname for Windows access
+CONTAINER_IP=$(pct exec $CTID hostname -I | awk '{print $1}')
+CONTAINER_HOSTNAME=$(pct exec $CTID hostname | tr -d '\n')
+
+# Retrieve SMB credentials from container
+msg_info "Retrieving SMB Credentials"
+SMB_CREDS=$(pct exec $CTID cat /root/smbshare.creds 2>/dev/null)
+if [[ -z "$SMB_CREDS" ]]; then
+    msg_error "Could not retrieve credentials file"
+    SMB_PASS="NOT_FOUND"
+else
+    SMB_PASS=$(echo "$SMB_CREDS" | grep "SMB Password:" | awk '{print $4}')
+fi
+msg_ok "Credentials Retrieved"
 
 msg_ok "Completed Successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
-echo -e "${INFO}${YW} Access the SMB share using the following address:${CL}"
-echo -e "${TAB}${GATEWAY}${BGN}\\\\${CONTAINER_IP}\\shared${CL}"
-echo -e "${INFO}${YW} Credentials stored in:${CL}"
-echo -e "${TAB}${GATEWAY}${BGN}~/smbshare.creds${CL}"
+echo ""
+echo -e "${INFO}${YW} Container Information:${CL}"
+echo -e "${TAB}${BGN}Hostname: ${CONTAINER_HOSTNAME}${CL}"
+echo -e "${TAB}${BGN}IP Address: ${CONTAINER_IP}${CL}"
+echo ""
+echo -e "${INFO}${YW} Access the SMB share:${CL}"
+echo -e "${TAB}${GATEWAY}${BGN}\\\\${CONTAINER_HOSTNAME}\\shared${CL}"
+echo ""
+echo -e "${INFO}${YW} SMB Credentials:${CL}"
+echo -e "${TAB}${BGN}Username: smbuser${CL}"
+echo -e "${TAB}${BGN}Password: ${SMB_PASS}${CL}"
 echo ""
 echo -e "${INFO}${YW} Windows Access Options:${CL}"
-echo -e "${TAB}${BGN}1. Map Network Drive:${CL}"
-echo -e "${TAB}   - Open File Explorer → Map network drive"
-echo -e "${TAB}   - Enter: \\\\${CONTAINER_IP}\\shared"
-echo -e "${TAB}${BGN}2. Network Discovery:${CL}"
+echo -e "${TAB}${BGN}1. Network Discovery (WSDD Enabled):${CL}"
 echo -e "${TAB}   - Open File Explorer → Network"
-echo -e "${TAB}   - Browse for available shares"
-echo -e "${TAB}${BGN}3. Command Prompt:${CL}"
-echo -e "${TAB}   - net use Z: \\\\${CONTAINER_IP}\\shared /user:smbuser <PASSWORD>"
+echo -e "${TAB}   - Look for '${CONTAINER_HOSTNAME}'"
+echo -e "${TAB}${BGN}2. Map Network Drive:${CL}"
+echo -e "${TAB}   - Open File Explorer → Map network drive"
+echo -e "${TAB}   - Enter: \\\\${CONTAINER_HOSTNAME}\\shared"
+echo -e "${TAB}${BGN}3. Command Prompt (Run as Administrator):${CL}"
+echo -e "${TAB}   - net use Z: \\\\${CONTAINER_HOSTNAME}\\shared /user:smbuser ${SMB_PASS} /persistent:yes"
 echo ""
