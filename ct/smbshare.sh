@@ -75,9 +75,23 @@ start
 build_container
 description
 
+# Get container IP for Windows access
+CONTAINER_IP=$(hostname -I | awk '{print $1}')
+
 msg_ok "Completed Successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
 echo -e "${INFO}${YW} Access the SMB share using the following address:${CL}"
-echo -e "${TAB}${GATEWAY}${BGN}\\\\$(hostname -I | awk '{print $1}')\\shared${CL}"
+echo -e "${TAB}${GATEWAY}${BGN}\\\\${CONTAINER_IP}\\shared${CL}"
 echo -e "${INFO}${YW} Credentials stored in:${CL}"
 echo -e "${TAB}${GATEWAY}${BGN}~/smbshare.creds${CL}"
+echo ""
+echo -e "${INFO}${YW} Windows Access Options:${CL}"
+echo -e "${TAB}${BGN}1. Map Network Drive:${CL}"
+echo -e "${TAB}   - Open File Explorer → Map network drive"
+echo -e "${TAB}   - Enter: \\\\${CONTAINER_IP}\\shared"
+echo -e "${TAB}${BGN}2. Network Discovery:${CL}"
+echo -e "${TAB}   - Open File Explorer → Network"
+echo -e "${TAB}   - Browse for available shares"
+echo -e "${TAB}${BGN}3. Command Prompt:${CL}"
+echo -e "${TAB}   - net use Z: \\\\${CONTAINER_IP}\\shared /user:smbuser <PASSWORD>"
+echo ""
